@@ -95,53 +95,7 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
     features, labels = ds.make_one_shot_iterator().get_next()
     return features, labels
 
-# +1 Bucketize the features!
-def get_quantile_based_boundaries(feature_values, num_buckets):
-    boundaries = np.arange(1.0, num_buckets) / num_buckets
-    quantiles = feature_values.quantiles(boundaries)
-    return [quantiles[q] for q in quantiles.keys()]
 
-# +2 Combine multi features:
-def construct_feature_columns():
-    households = tf.feature_column.numeric_column("households")
-    longitude = tf.feature_column.numeric_column("longitude")
-    latitude = tf.feature_column.numeric_column("latitude")
-    housing_median_age = tf.feature_column.numeric_column("housing_median_age")
-    median_income = tf.feature_column.numeric_column("median_income")
-    rooms_per_person = tf.feature_column.numeric_column("rooms_per_person")
-
-    # Divide households into 7 buckets.
-    bucketized_households = tf.feature_column.bucketized_column(
-    households, boundaries=get_quantile_based_boundaries(
-        training_examples["households"], 7))
-
-    # Divide longitude into 10 buckets.
-    bucketized_longitude = tf.feature_column.bucketized_column(
-    longitude, boundaries=get_quantile_based_boundaries(
-        training_examples["longitude"], 10))
-
-    bucketized_latitude = tf.feature_column.bucketized_column(
-    latitude, boundaries=get_quantile_based_boundaries(
-        training_examples["latitude"], 7))
-
-    bucketized_housing_median_age = tf.feature_column.bucketized_column(
-    housing_median_age, boundaries=get_quantile_based_boundaries(
-        training_examples["housing_median_age"], 7))
-
-    bucketized_median_income = tf.feature_column.bucketized_column(
-    median_income, boundaries=get_quantile_based_boundaries(
-        training_examples["median_income"], 7))
-
-
-
-    feature_columns = set([
-    bucketized_longitude,
-    bucketized_latitude,
-    bucketized_housing_median_age,
-    bucketized_households,
-    bucketized_median_income])
-
-    return feature_columns
 
 # 4 Training the Model:
 def train_model(
@@ -214,7 +168,53 @@ def train_model(
 
     return linear_regressor
 
+# +1 Bucketize the features!
+def get_quantile_based_boundaries(feature_values, num_buckets):
+    boundaries = np.arange(1.0, num_buckets) / num_buckets
+    quantiles = feature_values.quantiles(boundaries)
+    return [quantiles[q] for q in quantiles.keys()]
 
+# +2 Combine multi features:
+def construct_feature_columns():
+    households = tf.feature_column.numeric_column("households")
+    longitude = tf.feature_column.numeric_column("longitude")
+    latitude = tf.feature_column.numeric_column("latitude")
+    housing_median_age = tf.feature_column.numeric_column("housing_median_age")
+    median_income = tf.feature_column.numeric_column("median_income")
+    rooms_per_person = tf.feature_column.numeric_column("rooms_per_person")
+
+    # Divide households into 7 buckets.
+    bucketized_households = tf.feature_column.bucketized_column(
+    households, boundaries=get_quantile_based_boundaries(
+        training_examples["households"], 7))
+
+    # Divide longitude into 10 buckets.
+    bucketized_longitude = tf.feature_column.bucketized_column(
+    longitude, boundaries=get_quantile_based_boundaries(
+        training_examples["longitude"], 10))
+
+    bucketized_latitude = tf.feature_column.bucketized_column(
+    latitude, boundaries=get_quantile_based_boundaries(
+        training_examples["latitude"], 7))
+
+    bucketized_housing_median_age = tf.feature_column.bucketized_column(
+    housing_median_age, boundaries=get_quantile_based_boundaries(
+        training_examples["housing_median_age"], 7))
+
+    bucketized_median_income = tf.feature_column.bucketized_column(
+    median_income, boundaries=get_quantile_based_boundaries(
+        training_examples["median_income"], 7))
+
+
+
+    feature_columns = set([
+    bucketized_longitude,
+    bucketized_latitude,
+    bucketized_housing_median_age,
+    bucketized_households,
+    bucketized_median_income])
+
+    return feature_columns
 
 _ = train_model(
     learning_rate=1.0,
