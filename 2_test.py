@@ -94,5 +94,5 @@ print("124")
 # Print Mean Squared Error and Root Mean Squared Error.
 mean_squared_error = metrics.mean_squared_error(predictions, targets)
 root_mean_squared_error = math.sqrt(mean_squared_error)
-print("Mean Squared Error (on training data): %0.3f" % mean_squared_error)
-print("Root Mean Squared Error (on training data): %0.3f" % root_mean_squared_error)
+print "Mean Squared Error (on training data): %0.3f" % mean_squared_error
+print "Root Mean Squared Error (on training data): %0.3f" % root_mean_squared_error
