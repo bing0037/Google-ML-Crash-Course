@@ -40,10 +40,9 @@ def preprocess_features(california_housing_dataframe):
 
 def preprocess_targets(california_housing_dataframe):
     output_targets = pd.DataFrame()
-    # Create a boolean categorical feature representing whether
-    # the median_house_value is above a set threshold.
-    output_targets["median_house_value_is_high"] = (
-    california_housing_dataframe["median_house_value"] > 265000).astype(float)
+    # Scale the target to be in units of thousands of dollars.
+    output_targets["median_house_value"] = (
+    california_housing_dataframe["median_house_value"] / 1000.0)
     return output_targets
 
 # 2 Extract useful data:
@@ -149,33 +148,13 @@ def train_model(
 
     return linear_regressor                
 
-# 5 Let's check the correlations between features and features and between features and target!
-
-# 6 Select the minimal features:
-# minimal_features = ["latitude",
-#      "longitude",
-#      "housing_median_age",
-#      "total_rooms",
-#      "total_bedrooms",
-#      "population",
-#      "households",
-#      "median_income"
-# ]
-minimal_features = ["latitude",
-     "longitude",
-     "housing_median_age",
-]
-assert minimal_features, "You must select at least one feature!"
-minimal_training_examples = training_examples[minimal_features]
-minimal_validation_examples = validation_examples[minimal_features]
-
-# 7 Start training & revise the hyperparameters:
+# 5 Start training & revise the hyperparameters:
 # Don't forget to adjust these parameters while using different features!
 linear_regressor = train_model(
     learning_rate=0.00003,
     steps=100,
     batch_size=5,
-    training_examples=minimal_training_examples,
+    training_examples=training_examples,
     training_targets=training_targets,
-    validation_examples=minimal_validation_examples,
+    validation_examples=validation_examples,
     validation_targets=validation_targets)    
