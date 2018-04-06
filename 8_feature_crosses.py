@@ -96,7 +96,6 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
     return features, labels
 
 
-
 # 4 Training the Model:
 def train_model(
     learning_rate,
@@ -171,7 +170,7 @@ def train_model(
 # +1 Bucketize the features!
 def get_quantile_based_boundaries(feature_values, num_buckets):
     boundaries = np.arange(1.0, num_buckets) / num_buckets
-    quantiles = feature_values.quantiles(boundaries)
+    quantiles = feature_values.quantile(boundaries)
     return [quantiles[q] for q in quantiles.keys()]
 
 # +2 Combine multi features:
@@ -205,14 +204,17 @@ def construct_feature_columns():
     median_income, boundaries=get_quantile_based_boundaries(
         training_examples["median_income"], 7))
 
-
+    # +3 Make a feature colunm for feature corss: longitude and latitude cross
+    # crossed_column() usage: tf.feature_column.crossed_column(keys,hash_bucket_size,hash_key=None)
+    long_x_lat = tf.feature_column.crossed_column([bucketized_longitude, bucketized_latitude],1000)
 
     feature_columns = set([
     bucketized_longitude,
     bucketized_latitude,
     bucketized_housing_median_age,
     bucketized_households,
-    bucketized_median_income])
+    bucketized_median_income,
+    long_x_lat])
 
     return feature_columns
 
