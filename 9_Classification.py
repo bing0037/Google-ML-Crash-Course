@@ -131,7 +131,7 @@ def train_model(
         print("  period %02d : %0.2f" % (period, training_log_loss))
         # Add the loss metrics from this period to our list.
         training_logloss_all.append(training_log_loss)
-        training_logloss_all.append(validation_log_loss)
+        validation_log_loss_all.append(validation_log_loss)
     print("Model training finished.")
     # Output a graph of loss metrics over periods.
     plt.ylabel("LogLoss")
