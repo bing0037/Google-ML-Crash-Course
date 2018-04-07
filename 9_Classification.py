@@ -40,9 +40,10 @@ def preprocess_features(california_housing_dataframe):
 
 def preprocess_targets(california_housing_dataframe):
     output_targets = pd.DataFrame()
-    # Scale the target to be in units of thousands of dollars.
-    output_targets["median_house_value"] = (
-    california_housing_dataframe["median_house_value"] / 1000.0)
+    # Create a boolean categorical feature representing whether the
+    # median_house_value is above a set threshold.
+    output_targets["median_house_value_is_high"] = (
+        california_housing_dataframe["median_house_value"] > 265000).astype(float)
     return output_targets
 
 # 2 Extract useful data:
@@ -87,19 +88,18 @@ def train_model(
     training_targets,
     validation_examples,
     validation_targets):
-
     periods = 10
     steps_per_period = steps / periods
-  
-    # 4-1) Create a linear regressor object.
+
+    # 4-1) Create a linear classifier object.
     my_optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
     my_optimizer = tf.contrib.estimator.clip_gradients_by_norm(my_optimizer, 5.0)
-    linear_regressor = tf.estimator.LinearRegressor(
+    linear_classifier = tf.estimator.LinearClassifier(
         feature_columns=construct_feature_columns(training_examples),
         optimizer=my_optimizer
     )
 
-    # 4-2) Create input functions.
+    # 4-2) Create input functions.    
     training_input_fn = lambda:my_input_fn(training_examples,   training_targets, batch_size=batch_size)
 
     predict_training_input_fn = lambda: my_input_fn(training_examples,   training_targets, num_epochs=1, shuffle=False)
@@ -109,48 +109,44 @@ def train_model(
     # Train the model, but do so inside a loop so that we can periodically assess
     # loss metrics.
     print("Training model...")
-    print("RMSE (on training data):")
-    training_rmse = []
-    validation_rmse = []
+    print("LogLoss (on training data):")
+    training_logloss_all = []
+    validation_log_loss_all = []
     for period in range (0, periods):
         # Train the model, starting from the prior state.
-        linear_regressor.train(
+        linear_classifier.train(
             input_fn=training_input_fn,
-            steps=steps_per_period,
+            steps=steps_per_period
         )
-    # 4-3) Take a break and compute predictions.
-        training_predictions = linear_regressor.predict(input_fn=predict_training_input_fn)
-        training_predictions = np.array([item['predictions'][0] for item in training_predictions])
+        # Take a break and compute predictions.    
+        training_predictions = linear_classifier.predict(input_fn=predict_training_input_fn)
+        training_predictions = np.array([item['probabilities'] for item in training_predictions])
 
-        validation_predictions = linear_regressor.predict(input_fn=predict_validation_input_fn)
-        validation_predictions = np.array([item['predictions'][0] for item in validation_predictions])
+        validation_predictions = linear_classifier.predict(input_fn=predict_validation_input_fn)
+        validation_predictions = np.array([item['probabilities'] for item in validation_predictions])
 
-        # Compute training and validation loss.
-        training_root_mean_squared_error = math.sqrt(
-            metrics.mean_squared_error(training_predictions, training_targets))
-        validation_root_mean_squared_error = math.sqrt(
-            metrics.mean_squared_error(validation_predictions, validation_targets))
+        training_log_loss = metrics.log_loss(training_targets, training_predictions)
+        validation_log_loss = metrics.log_loss(validation_targets, validation_predictions)
         # Occasionally print the current loss.
-        print("  period %02d : %0.2f" % (period, training_root_mean_squared_error))
+        print("  period %02d : %0.2f" % (period, training_log_loss))
         # Add the loss metrics from this period to our list.
-        training_rmse.append(training_root_mean_squared_error)
-        validation_rmse.append(validation_root_mean_squared_error)
+        training_logloss_all.append(training_log_loss)
+        training_logloss_all.append(validation_log_loss)
     print("Model training finished.")
-
     # Output a graph of loss metrics over periods.
-    plt.ylabel("RMSE")
+    plt.ylabel("LogLoss")
     plt.xlabel("Periods")
-    plt.title("Root Mean Squared Error vs. Periods")
+    plt.title("LogLoss vs. Periods")
     plt.tight_layout()
-    plt.plot(training_rmse, label="training")
-    plt.plot(validation_rmse, label="validation")
+    plt.plot(training_logloss_all, label="training")
+    plt.plot(training_logloss_all, label="validation")
     plt.legend()
 
-    return linear_regressor                
+    return linear_classifier               
 
 # 5 Start training & revise the hyperparameters:
 # Don't forget to adjust these parameters while using different features!
-linear_regressor = train_model(
+linear_classifier = train_model(
     learning_rate=0.00003,
     steps=100,
     batch_size=5,
