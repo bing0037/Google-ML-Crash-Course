@@ -14,46 +14,50 @@ pd.options.display.max_rows = 10
 pd.options.display.float_format = '{:.1f}'.format
 
 # Data:
-california_housing_dataframe = pd.read_csv("/home/roboticslab16/code/study/Google ML Crash Course/california_housing_train.csv", sep=",")
-# Reindex the data:
-# california_housing_dataframe = california_housing_dataframe.reindex(
-#     np.random.permutation(california_housing_dataframe.index))
+Titanic_dataframe = pd.read_csv("/home/roboticslab16/code/study/Google ML Crash Course/Kaggle/train_age_revised.csv", sep=",")
+Titanic_dataframe.describe()
+Titanic_dataframe = Titanic_dataframe.reindex(
+    np.random.permutation(Titanic_dataframe.index))
+
 
 # 1 Data preprocess: features & targets
-def preprocess_features(california_housing_dataframe):
-    selected_features = california_housing_dataframe[
-    ["latitude",
-        "longitude",
-        "housing_median_age",
-        "total_rooms",
-        "total_bedrooms",
-        "population",
-        "households",
-        "median_income"]]
+def preprocess_features(Titanic_dataframe):
+    selected_features = Titanic_dataframe[
+    [
+        # "PassengerId",
+        "Pclass",
+        "Sex",
+        "Age",
+        "SibSp",
+        "Parch",
+        "Fare",
+        "Embarked"
+        ]]
     processed_features = selected_features.copy()
+    processed_features["Sex"] = processed_features["Sex"].apply(lambda x: 1 if x == "male" else 0)
+    processed_features["Embarked"] = processed_features["Embarked"].apply(lambda x: -1 if x == "S" else 0 if x == "S" else 1)
+    
     # Create a synthetic feature.
-    processed_features["rooms_per_person"] = (
-    california_housing_dataframe["total_rooms"] /
-    california_housing_dataframe["population"])
+    # processed_features["rooms_per_person"] = (
+    # Titanic_dataframe["total_rooms"] /
+    # Titanic_dataframe["population"])
     return processed_features
 
-
-def preprocess_targets(california_housing_dataframe):
+def preprocess_targets(Titanic_dataframe):
     output_targets = pd.DataFrame()
-    # Create a boolean categorical feature representing whether the
-    # median_house_value is above a set threshold.
-    output_targets["median_house_value_is_high"] = (
-        california_housing_dataframe["median_house_value"] > 265000).astype(float)
+    # Scale the target to be in units of thousands of dollars.
+    output_targets["Survived"] = (Titanic_dataframe["Survived"] > 0.5).astype(float)
+    
     return output_targets
 
 # 2 Extract useful data:
-training_examples = preprocess_features(california_housing_dataframe.head(12000))
+training_examples = preprocess_features(Titanic_dataframe.head(890))
 training_examples.describe()
-training_targets = preprocess_targets(california_housing_dataframe.head(12000))
+training_targets = preprocess_targets(Titanic_dataframe.head(890))
 training_targets.describe()
-validation_examples = preprocess_features(california_housing_dataframe.tail(5000))
+validation_examples = preprocess_features(Titanic_dataframe.tail(300))
 validation_examples.describe()
-validation_targets = preprocess_targets(california_housing_dataframe.tail(5000))
+validation_targets = preprocess_targets(Titanic_dataframe.tail(300))
 validation_targets.describe()
 
 # 3 Input Function:
@@ -61,18 +65,36 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
     
     # Convert pandas data into a dict of np arrays.
     features = {key:np.array(value) for key,value in dict(features).items()}                                           
-
+ 
     # Construct a dataset, and configure batching/repeating
     ds = Dataset.from_tensor_slices((features,targets)) # warning: 2GB limit
     ds = ds.batch(batch_size).repeat(num_epochs)
-
-    # Shuffle the data, if specified
-    if shuffle:
-        ds = ds.shuffle(10000)
-
+    
+    # # Shuffle the data, if specified
+    # if shuffle:
+    #   ds = ds.shuffle(10000)
+    
     # Return the next batch of data
     features, labels = ds.make_one_shot_iterator().get_next()
     return features, labels
+
+# 3-2) Input Function:
+def my_input_fn_no_target(features, batch_size=1, shuffle=True, num_epochs=None):
+    
+    # Convert pandas data into a dict of np arrays.
+    features = {key:np.array(value) for key,value in dict(features).items()}                                           
+ 
+    # Construct a dataset, and configure batching/repeating
+    ds = Dataset.from_tensor_slices(features) # warning: 2GB limit
+    ds = ds.batch(batch_size).repeat(num_epochs)
+    
+    # # Shuffle the data, if specified
+    # if shuffle:
+    #   ds = ds.shuffle(10000)
+    
+    # Return the next batch of data ???? 1
+    features = ds.make_one_shot_iterator().get_next()
+    return features
 
 # + Combine multi features:
 def construct_feature_columns(input_features):
@@ -84,18 +106,21 @@ def train_model(
     learning_rate,
     steps,
     batch_size,
+    hidden_units,
     training_examples,
     training_targets,
     validation_examples,
     validation_targets):
+
     periods = 10
     steps_per_period = steps / periods
 
     # 4-1) Create a linear classifier object.
     my_optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
     my_optimizer = tf.contrib.estimator.clip_gradients_by_norm(my_optimizer, 5.0)
-    linear_classifier = tf.estimator.LinearClassifier(
+    dnn_classifier = tf.estimator.DNNClassifier(
         feature_columns=construct_feature_columns(training_examples),
+        hidden_units=hidden_units,
         optimizer=my_optimizer
     )
 
@@ -114,15 +139,15 @@ def train_model(
     validation_log_loss_all = []
     for period in range (0, periods):
         # Train the model, starting from the prior state.
-        linear_classifier.train(
+        dnn_classifier.train(
             input_fn=training_input_fn,
             steps=steps_per_period
         )
         # Take a break and compute predictions.    
-        training_predictions = linear_classifier.predict(input_fn=predict_training_input_fn)
+        training_predictions = dnn_classifier.predict(input_fn=predict_training_input_fn)
         training_predictions = np.array([item['probabilities'] for item in training_predictions])
 
-        validation_predictions = linear_classifier.predict(input_fn=predict_validation_input_fn)
+        validation_predictions = dnn_classifier.predict(input_fn=predict_validation_input_fn)
         validation_predictions = np.array([item['probabilities'] for item in validation_predictions])
 
         training_log_loss = metrics.log_loss(training_targets, training_predictions)
@@ -142,28 +167,36 @@ def train_model(
     plt.plot(training_logloss_all, label="validation")
     plt.legend()
 
-    return linear_classifier               
+    return dnn_classifier 
 
 # 5 Start training & revise the hyperparameters:
 # Don't forget to adjust these parameters while using different features!
-linear_classifier = train_model(
+dnn_classifier = train_model(
     learning_rate=0.00003,
     steps=100,
     batch_size=5,
+    hidden_units=[10,10],
     training_examples=training_examples,
     training_targets=training_targets,
     validation_examples=validation_examples,
-    validation_targets=validation_targets)    
+    validation_targets=validation_targets)  
 
-# 6 Calculate Accuracy and plot ROC Curve for Validation Set
-predict_validation_input_fn = lambda: my_input_fn(validation_examples,   validation_targets, num_epochs=1, shuffle=False)
-evaluation_metrics = linear_classifier.evaluate(input_fn=predict_validation_input_fn)
-print("AUC on the validation set: %0.2f" % evaluation_metrics['auc'])
-print("Accuracy on the validation set: %0.2f" % evaluation_metrics['accuracy'])
-# ROC Curve:
-validation_predictions = linear_classifier.predict(input_fn=predict_validation_input_fn)
-validation_predictions = np.array([item['probabilities'][1] for item in validation_predictions])
-false_positive_rate, true_positive_rate, thresholds =  metrics.roc_curve(validation_targets,validation_predictions)
-plt.plot(false_positive_rate, true_positive_rate, label="our model")
-plt.plot([0, 1], [0, 1], label="random classifier")
-_ = plt.legend(loc=2)
+# 6 Test the model Using test dataset:
+Titanic_test_dataframe = pd.read_csv("/home/roboticslab16/code/study/Google ML Crash Course/Kaggle/test _age_revised.csv", sep=",")
+# Data Extraction:
+test_examples = preprocess_features(Titanic_test_dataframe)
+# test_targets = preprocess_targets(Titanic_test_dataframe)
+# Input function: ????? 1
+predict_test_input_fn = lambda: my_input_fn_no_target(test_examples, num_epochs=1, shuffle=False)
+# Prediction:
+test_predictions = dnn_classifier.predict(input_fn=predict_test_input_fn)
+# ????? 2
+test_predictions = np.array([item['probabilities'] for item in test_predictions])
+# ????? 3 output save!
+
+# Compute training and validation loss.
+# training_root_mean_squared_error = math.sqrt(
+#     metrics.mean_squared_error(test_predictions, test_targets))
+# print("Final RMSE (on test data): %0.2f" % training_root_mean_squared_error)
+
+# 2 problems: ????? 1 & 2 & 3 

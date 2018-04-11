@@ -14,46 +14,50 @@ pd.options.display.max_rows = 10
 pd.options.display.float_format = '{:.1f}'.format
 
 # Data:
-california_housing_dataframe = pd.read_csv("/home/roboticslab16/code/study/Google ML Crash Course/california_housing_train.csv", sep=",")
-# Reindex the data:
-# california_housing_dataframe = california_housing_dataframe.reindex(
-#     np.random.permutation(california_housing_dataframe.index))
+Titanic_dataframe = pd.read_csv("/home/roboticslab16/code/study/Google ML Crash Course/Kaggle/train_age_revised.csv", sep=",")
+Titanic_dataframe.describe()
+Titanic_dataframe = Titanic_dataframe.reindex(
+    np.random.permutation(Titanic_dataframe.index))
+
 
 # 1 Data preprocess: features & targets
-def preprocess_features(california_housing_dataframe):
-    selected_features = california_housing_dataframe[
-    ["latitude",
-        "longitude",
-        "housing_median_age",
-        "total_rooms",
-        "total_bedrooms",
-        "population",
-        "households",
-        "median_income"]]
+def preprocess_features(Titanic_dataframe):
+    selected_features = Titanic_dataframe[
+    [
+        # "PassengerId",
+        "Pclass",
+        "Sex",
+        "Age",
+        "SibSp",
+        "Parch",
+        "Fare",
+        "Embarked"
+        ]]
     processed_features = selected_features.copy()
+    processed_features["Sex"] = processed_features["Sex"].apply(lambda x: 1 if x == "male" else 0)
+    processed_features["Embarked"] = processed_features["Embarked"].apply(lambda x: -1 if x == "S" else 0 if x == "S" else 1)
+    
     # Create a synthetic feature.
-    processed_features["rooms_per_person"] = (
-    california_housing_dataframe["total_rooms"] /
-    california_housing_dataframe["population"])
+    # processed_features["rooms_per_person"] = (
+    # Titanic_dataframe["total_rooms"] /
+    # Titanic_dataframe["population"])
     return processed_features
 
-
-def preprocess_targets(california_housing_dataframe):
+def preprocess_targets(Titanic_dataframe):
     output_targets = pd.DataFrame()
-    # Create a boolean categorical feature representing whether the
-    # median_house_value is above a set threshold.
-    output_targets["median_house_value_is_high"] = (
-        california_housing_dataframe["median_house_value"] > 265000).astype(float)
+    # Scale the target to be in units of thousands of dollars.
+    output_targets["Survived"] = (Titanic_dataframe["Survived"] > 0.5).astype(float)
+    
     return output_targets
 
 # 2 Extract useful data:
-training_examples = preprocess_features(california_housing_dataframe.head(12000))
+training_examples = preprocess_features(Titanic_dataframe.head(890))
 training_examples.describe()
-training_targets = preprocess_targets(california_housing_dataframe.head(12000))
+training_targets = preprocess_targets(Titanic_dataframe.head(890))
 training_targets.describe()
-validation_examples = preprocess_features(california_housing_dataframe.tail(5000))
+validation_examples = preprocess_features(Titanic_dataframe.tail(300))
 validation_examples.describe()
-validation_targets = preprocess_targets(california_housing_dataframe.tail(5000))
+validation_targets = preprocess_targets(Titanic_dataframe.tail(300))
 validation_targets.describe()
 
 # 3 Input Function:
@@ -61,15 +65,15 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
     
     # Convert pandas data into a dict of np arrays.
     features = {key:np.array(value) for key,value in dict(features).items()}                                           
-
+ 
     # Construct a dataset, and configure batching/repeating
     ds = Dataset.from_tensor_slices((features,targets)) # warning: 2GB limit
     ds = ds.batch(batch_size).repeat(num_epochs)
-
-    # Shuffle the data, if specified
-    if shuffle:
-        ds = ds.shuffle(10000)
-
+    
+    # # Shuffle the data, if specified
+    # if shuffle:
+    #   ds = ds.shuffle(10000)
+    
     # Return the next batch of data
     features, labels = ds.make_one_shot_iterator().get_next()
     return features, labels
@@ -88,10 +92,11 @@ def train_model(
     training_targets,
     validation_examples,
     validation_targets):
+
     periods = 10
     steps_per_period = steps / periods
 
-    # 4-1) Create a linear classifier object.
+        # 4-1) Create a linear classifier object.
     my_optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
     my_optimizer = tf.contrib.estimator.clip_gradients_by_norm(my_optimizer, 5.0)
     linear_classifier = tf.estimator.LinearClassifier(
@@ -142,7 +147,7 @@ def train_model(
     plt.plot(training_logloss_all, label="validation")
     plt.legend()
 
-    return linear_classifier               
+    return linear_classifier 
 
 # 5 Start training & revise the hyperparameters:
 # Don't forget to adjust these parameters while using different features!
@@ -153,17 +158,4 @@ linear_classifier = train_model(
     training_examples=training_examples,
     training_targets=training_targets,
     validation_examples=validation_examples,
-    validation_targets=validation_targets)    
-
-# 6 Calculate Accuracy and plot ROC Curve for Validation Set
-predict_validation_input_fn = lambda: my_input_fn(validation_examples,   validation_targets, num_epochs=1, shuffle=False)
-evaluation_metrics = linear_classifier.evaluate(input_fn=predict_validation_input_fn)
-print("AUC on the validation set: %0.2f" % evaluation_metrics['auc'])
-print("Accuracy on the validation set: %0.2f" % evaluation_metrics['accuracy'])
-# ROC Curve:
-validation_predictions = linear_classifier.predict(input_fn=predict_validation_input_fn)
-validation_predictions = np.array([item['probabilities'][1] for item in validation_predictions])
-false_positive_rate, true_positive_rate, thresholds =  metrics.roc_curve(validation_targets,validation_predictions)
-plt.plot(false_positive_rate, true_positive_rate, label="our model")
-plt.plot([0, 1], [0, 1], label="random classifier")
-_ = plt.legend(loc=2)
+    validation_targets=validation_targets)  

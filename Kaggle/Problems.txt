@@ -1,0 +1,7 @@
+1) data cleaning
+2) get prediction value
+3) save prediction value.
+
+see: 1_Titanic_Neural_Net.py
+
+-20180409
